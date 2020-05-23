@@ -235,7 +235,7 @@ def GenerateObs(n_obs: int, nx: float, ny: float, N: int) -> ObsList:
     return obs_list
 
 
-def plotPRM(graphPRM: GraphPRM, Cobs: ObsList, thd: float):
+def PlotPRM(graphPRM: GraphPRM, Cobs: ObsList, thd: float):
     edges = graphPRM.edge_matrix
     nodes = graphPRM.nodes_pos
 
@@ -264,20 +264,79 @@ def plotPRM(graphPRM: GraphPRM, Cobs: ObsList, thd: float):
                 x2 = (nodes[j])[0]
                 y1 = (nodes[i])[1]
                 y2 = (nodes[j])[1]
-                plt.plot([x1, x2], [y1, y2], c='b', linewidth=0.2)
+                plt.plot([x1, x2], [y1, y2], c='c', linewidth=0.2, zorder=1)
     mean_node_degree = tot_nodes_degree / len(nodes)
     # add the nodes
     for i in range(len(nodes)):
         loc = nodes[i]
-        plt.scatter(loc[0], loc[1], c='g')
+        plt.scatter(loc[0], loc[1], c='g', zorder=2)
     plt.xlabel('x')
     plt.ylabel('y')
     plt.title(f'#nodes={len(nodes)}, th={thd}, #edges={edge_counter},'
               f' mean node degree = {mean_node_degree}')
+    # plt.show()
+
+
+def FindNodeClosestTo(graphNods, point):
+    smallest_dist = 150.0
+    node_idx = -1
+    for i in range(len(graphNods)):
+        dist = np.linalg.norm(
+            np.array(graphNods[i]) - np.array(point))
+        if dist < smallest_dist:
+            smallest_dist = dist
+            node_idx = i
+    return node_idx, graphNods[node_idx]
+
+
+def expand(opened, closed, edges, distances, parent, thd):
+    min_idx = -1
+    min_dist = np.inf
+    for j in opened:
+        if distances[j]< min_dist:
+            min_dist = distances[j]
+            min_idx = j
+    opened.remove(min_idx) #node is index
+    closed.append(min_idx)
+    connected_edges = edges[min_idx][:]
+    for i in range(len(connected_edges)):
+        cur_edge = edges[min_idx][i]
+        if i is not min_idx and cur_edge < thd+1 and i not in closed and \
+                cur_edge+distances[min_idx] < distances[i]:
+            distances[i] = cur_edge+distances[min_idx]
+            parent[i] = min_idx
+            if i not in opened:
+                opened.append(i)
+
+
+def RunDijkstra(idx_start, graphPRM, thd):
+    edges = graphPRM.edge_matrix
+    nodes = graphPRM.nodes_pos
+    parent = np.ones(len(graphPRM.nodes_pos),dtype=int) * -1
+    opened = [idx_start]
+    closed = []
+    distances = np.full(len(nodes), np.inf, dtype=float)
+    distances[idx_start] = 0.0
+    while len(opened) is not 0:
+        expand(opened, closed, edges, distances, parent, thd)
+    return parent
+
+
+def PlotDijkstra(parent, idx_start, x_start, idx_goal, x_goal, nodes):
+    prev_node = idx_goal
+    cur_node = parent[prev_node]
+    while int(prev_node) is not int(idx_start):
+        x1 = (nodes[cur_node])[0]
+        x2 = (nodes[prev_node])[0]
+        y1 = (nodes[cur_node])[1]
+        y2 = (nodes[prev_node])[1]
+        plt.plot([x1, x2], [y1, y2], c='m', linewidth=1, zorder=3)
+        prev_node = cur_node
+        cur_node = parent[cur_node]
     plt.show()
 
-
 def main():
+    # part 1 generate the PRM grpahs
     N = 100
     n_obs = 15
     nx = 15.0
@@ -285,15 +344,21 @@ def main():
     Nnodes = [100, 500]
     thd = [20, 50]
     Cobs = GenerateObs(n_obs, nx, ny, N)
-    graphPRM1 = GeneratePRM(N, thd[0], Nnodes[0], Cobs)  # 1000 nodes,  20 thresh
-    plotPRM(graphPRM1, Cobs, thd[0])
-    # graphPRM2 = GeneratePRM(N, thd[1], Nnodes[0], Cobs)  # 1000 nodes,  50 thresh
-    # plotPRM(graphPRM2, Cobs, thd[1])
-    # graphPRM3 = GeneratePRM(N, thd[0], Nnodes[1], Cobs)  # 5000 nodes,  20 thresh
+    # graphPRM1 = GeneratePRM(N, thd[0], Nnodes[0], Cobs)  # 100 nodes,  20 thresh
+    # plotPRM(graphPRM1, Cobs, thd[0])
+    graphPRM2 = GeneratePRM(N, thd[1], Nnodes[0], Cobs)  # 100 nodes,  50 thresh
+    PlotPRM(graphPRM2, Cobs, thd[1])
+    # graphPRM3 = GeneratePRM(N, thd[0], Nnodes[1], Cobs)  # 500 nodes,  20 thresh
     # plotPRM(graphPRM3, Cobs, thd[0])
-    # graphPRM4 = GeneratePRM(N, thd[1], Nnodes[1], Cobs)  # 5000 nodes,  50 thresh
+    # graphPRM4 = GeneratePRM(N, thd[1], Nnodes[1], Cobs)  # 500 nodes,  50 thresh
     # plotPRM(graphPRM4, Cobs, thd[1])
 
+    # part 2 use the Nnodes=100 and thd=50 configuration to run Dijkstra on
+    idx_start, x_start = FindNodeClosestTo(graphPRM2.nodes_pos, (0.0, 0.0))
+    idx_goal, x_goal = FindNodeClosestTo(graphPRM2.nodes_pos, (float(N), float(N)))
+    print(x_start, x_goal)
+    parent = RunDijkstra(idx_start, graphPRM2, thd[1])
+    PlotDijkstra(parent, idx_start, x_start, idx_goal, x_goal, graphPRM2.nodes_pos)
 
 if __name__ == '__main__':
     main()
